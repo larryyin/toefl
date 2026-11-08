@@ -132,6 +132,7 @@ button{font-family:inherit;cursor:pointer}
 .feedback.show{display:block}
 .feedback.good{background:#DCFCE7;color:#14532D}
 .feedback.bad{background:var(--coral-light)}
+.feedback.mid{background:#FEF3C7;color:#78350F}
 .spellinput{width:100%;font-size:20px;font-family:"Spectral",Georgia,"Times New Roman",serif;padding:14px 16px;border-radius:14px;border:2px solid var(--line);background:var(--surface);color:var(--ink);text-align:center;letter-spacing:.06em}
 .result{text-align:center;padding:30px 20px}
 .result .big{font-size:56px;font-family:"Spectral",Georgia,"Times New Roman",serif;font-weight:800;line-height:1}
@@ -392,7 +393,7 @@ button{font-family:inherit;cursor:pointer}
     <p class="section-sub">每项测试固定 20 题。错题自动记入错词本，可在记录页复习。</p>
     <div class="tkinds">
       <button class="tkind active" data-kind="review"><b>复习</b><p>复习已学词汇，按遗忘曲线优先安排易忘词，错词本中的词优先出现。</p><span class="avail" id="tkReviewN"></span></button>
-      <button class="tkind" data-kind="exam"><b>已学内容考试</b><p>考核已学课程内容，四选一与拼写结合（每 5 题 1 道拼写），60 分及格。</p><span class="avail" id="tkExamN"></span></button>
+      <button class="tkind" data-kind="exam"><b>已学内容考试</b><p>考核已学课程内容，全部为四选一选择题，60 分及格。</p><span class="avail" id="tkExamN"></span></button>
       <button class="tkind" data-kind="placement"><b>整体测试</b><p>从全词库抽题，按正确率估算当前词汇量，评估整体掌握水平。</p><span class="avail" id="tkPlaceN"></span></button>
     </div>
     <p id="quizGate" style="color:var(--coral);font-weight:700;font-size:13.5px;margin:16px 0 10px" class="hidden"></p>
@@ -1537,7 +1538,7 @@ function showQ(){
    opts.forEach(function(o){var b=document.createElement("button");b.className="opt";b.textContent=o;b.onclick=function(){answerChoice(b,o===w.cn,w)};$("qOpts").appendChild(b)});
  }else{
    $("qOpts").classList.add("hidden");$("qSpell").classList.remove("hidden");
-   $("qWord").textContent=w.cn; $("qHint").innerHTML="首字母 "+w.word[0].toUpperCase()+" · 共 "+w.word.length+" 个字母 · "+getDetail(w).pos+(getDetail(w).en?"<br>📖 英文释义："+getDetail(w).en:"");
+   $("qWord").textContent=w.cn; $("qHint").innerHTML="拼写题 · "+getDetail(w).pos+" · 本题考："+formLabel(w)+"<br>锚点 <b style=\"letter-spacing:2px\">"+anchorPattern(w.word)+"</b> · 共 "+w.word.replace(/[^a-zA-Z]/g,"").length+" 个字母"+(getDetail(w).en?"<br>📖 英文释义："+getDetail(w).en:"");
    $("spellInput").value=""; setTimeout(function(){$("spellInput").focus()},50);
  }
 }
@@ -1556,12 +1557,188 @@ function answerChoice(btn,ok,w){
  noteAnswer(w,ok);
  $("qCombo").textContent="Combo ×"+q.combo;$("qScore").textContent="得分 "+q.score;
 }
+/* ===== 拼写题灵活判分 =====
+   输入先规范化（小写、去首尾空格、去连字符 / 空格、去重音符号），再按三档判分：
+   ① 完全正确 → 满分；② 可接受答案（同词不同形态、同义词、英美拼法、单复数）→ 算对，
+      反馈说明用户答的词为何成立、本题目标词是什么；③ 接近（小拼错）→ 一半分并显示正确拼写；
+   其余才算错。缩写（如 TV）不算对，但反馈会说明托福要写正式词形。
+   可接受答案表不逐词手写：由目标词的词形变体、词库内同词干词条、同释义同词性词条、
+   精讲词的 syn 字段、英美拼法规则与不规则变化表自动生成。 */
+/* 本题要考的形态：写在题干里，让用户知道该答哪个形式 */
+function formLabel(w){
+ var c=posCat(w),s=w.word.toLowerCase();
+ if(c==="v"){if(/ing$/.test(s))return "动词的 -ing 形式";if(/ed$/.test(s))return "动词的 -ed 形式";if(/s$/.test(s))return "动词的第三人称单数形式";return "动词原形"}
+ if(c==="n"){if(/ing$/.test(s))return "名词（-ing 形式）";if(/(tion|sion)$/.test(s))return "名词（-tion 形式）";if(/er$/.test(s))return "名词（-er 形式）";if(/s$/.test(s))return "名词（以 -s 结尾）";return "名词原形"}
+ if(c==="adj"){if(/est$/.test(s))return "形容词最高级";if(/er$/.test(s))return "形容词比较级";return "形容词原形"}
+ if(c==="adv"){return /ly$/.test(s)?"副词（-ly 形式）":"副词原形"}
+ return getDetail(w).pos;
+}
+/* 锚点：首尾字母 + 中间下划线，如 shoot → S _ _ _ T，避免只给中文让用户猜是哪个词 */
+function anchorPattern(word){
+ var idx=[];for(var i=0;i<word.length;i++)if(/[a-zA-Z]/.test(word[i]))idx.push(i);
+ var first=idx[0],last=idx[idx.length-1],out=[];
+ for(var j=0;j<word.length;j++){
+   if(j===first)out.push(word[j].toUpperCase());
+   else if(j===last&&word.length>=4)out.push(word[j].toUpperCase());
+   else if(/[a-zA-Z]/.test(word[j]))out.push("_");
+   else out.push(word[j]);
+ }
+ return out.join(" ");
+}
+function normSpell(s){
+ return String(s==null?"":s).toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[\s\-]+/g,"");
+}
+/* 带相邻换位的编辑距离（Damerau–Levenshtein），用于小拼错容错 */
+function osaDist(a,b){
+ var m=a.length,n=b.length,i,j;
+ if(Math.abs(m-n)>2)return 3;
+ var d=[];for(i=0;i<=m;i++){d.push([i])}for(j=1;j<=n;j++)d[0][j]=j;
+ for(i=1;i<=m;i++)for(j=1;j<=n;j++){
+   var cost=a.charAt(i-1)===b.charAt(j-1)?0:1;
+   var v=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+cost);
+   if(i>1&&j>1&&a.charAt(i-1)===b.charAt(j-2)&&a.charAt(i-2)===b.charAt(j-1))v=Math.min(v,d[i-2][j-2]+1);
+   d[i][j]=v;
+ }
+ return d[m][n];
+}
+/* 词干集合：剥掉常见后缀，并给出还原形式（去双写、补 e、ies→y），供同词家族匹配 */
+function spellStems(word){
+ var s=normSpell(word),out={};
+ function add(x){if(x&&x.length>=3)out[x]=1}
+ add(s);
+ var sufs=["ation","ition","ness","ment","able","ible","ing","ied","ies","ed","er","est","ist","ism","ity","ly","es","s"];
+ for(var i=0;i<sufs.length;i++){
+   var sf=sufs[i];
+   if(s.length>sf.length+2&&s.slice(-sf.length)===sf){
+     var base=s.slice(0,s.length-sf.length);
+     add(base);
+     if(sf==="ies"||sf==="ied")add(base+"y");
+     if(/(.)\1$/.test(base))add(base.slice(0,-1));
+     add(base+"e");
+   }
+ }
+ return out;
+}
+/* 由词干反向生成同词的各种形态（shoot → shooting / shooter / shoots / shot 走不规则表） */
+function spellVariants(word){
+ var stems=spellStems(word),out={};
+ function add(x){if(x&&x.length>=2)out[normSpell(x)]=1}
+ var sufs=["","s","es","ed","ing","er","ers","est","ly","ity","ness","ment","ful","less","ous","al","ic","ist","ists","ism"];
+ for(var st in stems){
+   for(var i=0;i<sufs.length;i++){if(sufs[i]==="ly"&&st.length<4)continue;if(sufs[i]==="es"&&/is$/.test(st))continue;add(st+sufs[i])}
+   if(/e$/.test(st)){var b=st.slice(0,-1);add(b+"ing");add(b+"ed");add(b+"er");add(b+"est")}
+   if(/[^aeiou][aeiou][^aeiouwxy]$/.test(st)){var l=st.charAt(st.length-1);add(st+l+"ing");add(st+l+"ed");add(st+l+"er");add(st+l+"est")}
+   if(/y$/.test(st)){var b2=st.slice(0,-1);add(b2+"ies");add(b2+"ied");add(b2+"ily");add(b2+"ier");add(b2+"iest")}
+ }
+ return out;
+}
+/* 英美拼法互转：规则 + 常见词对表 */
+var UK_PAIRS={};[["center","centre"],["theater","theatre"],["fiber","fibre"],["liter","litre"],["gray","grey"],["mold","mould"],["plow","plough"],["skeptic","sceptic"],["check","cheque"],["tire","tyre"],["esthetic","aesthetic"],["maneuver","manoeuvre"],["pajamas","pyjamas"],["donut","doughnut"]].forEach(function(p){UK_PAIRS[p[0]]=p[1];UK_PAIRS[p[1]]=p[0]});
+function britVariants(s){
+ var out=[];
+ function rep(re,r){if(re.test(s))out.push(s.replace(re,r))}
+ rep(/ization$/,"isation");rep(/isation$/,"ization");
+ rep(/or$/,"our");rep(/our$/,"or");
+ rep(/ize$/,"ise");rep(/ise$/,"ize");
+ rep(/yze$/,"yse");rep(/yse$/,"yze");
+ rep(/og$/,"ogue");rep(/ogue$/,"og");
+ rep(/ense$/,"ence");rep(/ence$/,"ense");
+ if(UK_PAIRS[s])out.push(UK_PAIRS[s]);
+ return out;
+}
+/* 不规则动词变化表：同组内互认（shoot / shot / shooting 由词干规则覆盖，shot 靠这张表） */
+var IRREG_SETS={};
+[["shoot","shot"],["arise","arose","arisen"],["bear","bore","borne"],["beat","beaten"],["become","became"],["begin","began","begun"],["bend","bent"],["bind","bound"],["bite","bit","bitten"],["blow","blew","blown"],["break","broke","broken"],["bring","brought"],["build","built"],["burst"],["buy","bought"],["catch","caught"],["choose","chose","chosen"],["come","came"],["cost"],["creep","crept"],["cut"],["deal","dealt"],["dig","dug"],["do","did","done"],["draw","drew","drawn"],["drink","drank","drunk"],["drive","drove","driven"],["eat","ate","eaten"],["fall","fell","fallen"],["feed","fed"],["feel","felt"],["fight","fought"],["find","found"],["flee","fled"],["fly","flew","flown"],["forbid","forbade","forbidden"],["forget","forgot","forgotten"],["forgive","forgave","forgiven"],["freeze","froze","frozen"],["get","got","gotten"],["give","gave","given"],["go","went","gone"],["grind","ground"],["grow","grew","grown"],["hang","hung"],["hear","heard"],["hide","hid","hidden"],["hit"],["hold","held"],["hurt"],["keep","kept"],["know","knew","known"],["lay","laid"],["lead","led"],["leave","left"],["lend","lent"],["lie","lay","lain"],["lose","lost"],["make","made"],["mean","meant"],["meet","met"],["pay","paid"],["prove","proved","proven"],["read"],["ride","rode","ridden"],["ring","rang","rung"],["rise","rose","risen"],["run","ran"],["say","said"],["see","saw","seen"],["seek","sought"],["sell","sold"],["send","sent"],["sew","sewed","sewn"],["shake","shook","shaken"],["shine","shone"],["show","showed","shown"],["shrink","shrank","shrunk"],["shut"],["sing","sang","sung"],["sink","sank","sunk"],["sit","sat"],["sleep","slept"],["slide","slid"],["speak","spoke","spoken"],["speed","sped"],["spell","spelled","spelt"],["spend","spent"],["spin","spun"],["split"],["spread"],["spring","sprang","sprung"],["stand","stood"],["steal","stole","stolen"],["stick","stuck"],["sting","stung"],["strike","struck"],["swear","swore","sworn"],["sweep","swept"],["swim","swam","swum"],["swing","swung"],["take","took","taken"],["teach","taught"],["tear","tore","torn"],["tell","told"],["think","thought"],["throw","threw","thrown"],["understand","understood"],["wake","woke","woken"],["wear","wore","worn"],["weave","wove","woven"],["weep","wept"],["win","won"],["wind","wound"],["withdraw","withdrew","withdrawn"],["write","wrote","written"]].forEach(function(g){g.forEach(function(f){IRREG_SETS[f]=g})});
+/* 缩写 → 正式词形：答缩写不算对，反馈里提醒托福考正式词形 */
+var ABBR={"tv":"television","exam":"examination","photo":"photograph","math":"mathematics","maths":"mathematics","lab":"laboratory","ad":"advertisement","flu":"influenza","bike":"bicycle","plane":"airplane","phone":"telephone","gym":"gymnasium","dorm":"dormitory","info":"information","vet":"veterinarian","fridge":"refrigerator","copter":"helicopter"};
+/* 两个词是否只差单复数 */
+function pluralOnly(a,b){
+ if(a===b+"s"||a===b+"es"||b===a+"s"||b===a+"es")return true;
+ if(/ies$/.test(a)&&a.slice(0,-3)+"y"===b)return true;
+ if(/ies$/.test(b)&&b.slice(0,-3)+"y"===a)return true;
+ if(/es$/.test(a)&&a.slice(0,-2)+"is"===b)return true;
+ if(/es$/.test(b)&&b.slice(0,-2)+"is"===a)return true;
+ if(/ves$/.test(a)&&(a.slice(0,-3)+"f"===b||a.slice(0,-3)+"fe"===b))return true;
+ if(/ves$/.test(b)&&(b.slice(0,-3)+"f"===a||b.slice(0,-3)+"fe"===a))return true;
+ if(PLURAL_SETS[a]&&PLURAL_SETS[a].indexOf(b)>=0)return true;
+ return false;
+}
+/* 不规则复数表：同组互认（child / children、criterion / criteria 等） */
+var PLURAL_SETS={};
+[["man","men"],["woman","women"],["child","children"],["person","people"],["tooth","teeth"],["foot","feet"],["mouse","mice"],["goose","geese"],["criterion","criteria"],["phenomenon","phenomena"],["datum","data"],["ox","oxen"],["analysis","analyses"],["crisis","crises"],["thesis","theses"]].forEach(function(g){g.forEach(function(f){PLURAL_SETS[f]=g})});
+/* 为目标词生成可接受答案表：规范化答案 → 接受理由（form 同词形态 / syn 同义词 / brit 英美拼法） */
+function buildAnswerKey(w){
+ if(w._ak)return w._ak;
+ var target=normSpell(w.word),acc={};
+ function addA(form,reason){var nf=normSpell(form);if(nf&&nf!==target&&!acc[nf])acc[nf]=reason}
+ var variants=spellVariants(w.word),v;
+ for(v in variants){addA(v,"form");britVariants(v).forEach(function(b){addA(b,"brit")})}
+ britVariants(w.word.toLowerCase()).forEach(function(b){addA(b,"brit")});
+ var myStems=spellStems(w.word);
+ for(var stI in myStems){var grp=IRREG_SETS[stI];if(grp)grp.forEach(function(f){addA(f,"form");var vv=spellVariants(f);for(var vk in vv)addA(vk,"form")})}
+ var lw=w.word.toLowerCase(),pg=PLURAL_SETS[normSpell(lw)];
+ if(pg)pg.forEach(function(f){addA(f,"form")});
+ if(/[^aeiou]is$/.test(lw))addA(lw.slice(0,-2)+"es","form");
+ if(/fe$/.test(lw))addA(lw.slice(0,-2)+"ves","form");
+ else if(/f$/.test(lw)&&!/ff$/.test(lw))addA(lw.slice(0,-1)+"ves","form");
+ ALL.forEach(function(x){
+   if(x.id===w.id)return;
+   var xs=x._stems||(x._stems=spellStems(x.word));
+   for(var st in myStems){if(st.length>=4&&xs[st]){addA(x.word,"form");break}}
+ });
+ var myPos=posCat(w);
+ ALL.forEach(function(x){if(x.id!==w.id&&x.cn===w.cn&&posCat(x)===myPos)addA(x.word,"syn")});
+ var syns=getDetail(w).syn||[];
+ syns.join(",").split(",").forEach(function(s2){addA(s2,"syn")});
+ w._ak={target:target,acc:acc};
+ return w._ak;
+}
+function gradeSpell(w,raw){
+ var inp=normSpell(raw),key=buildAnswerKey(w);
+ if(!inp)return{tier:"empty"};
+ if(inp===key.target)return{tier:"exact"};
+ if(key.acc[inp])return{tier:"accept",reason:pluralOnly(inp,key.target)?"plural":key.acc[inp]};
+ if(ABBR[inp]&&normSpell(ABBR[inp])===key.target)return{tier:"abbr"};
+ var d=osaDist(inp,key.target),maxD=key.target.length>=8?2:1;
+ if(d>0&&d<=maxD)return{tier:"close"};
+ return{tier:"wrong"};
+}
+function spellFeedback(kind,w,pts,raw,reason){
+ var f=$("qFeed"),d=getDetail(w);
+ var tail=(d.en?"<br><small>📖 英文释义："+d.en+"</small>":"")+"<br><small>"+d.ex[0][0].replace(/<[^>]+>/g,"")+"</small>";
+ var head="";
+ if(kind==="accept"){
+   f.className="feedback show good";
+   var rn={form:"同词的其他形态",syn:"同义词",brit:"英式拼法",plural:"复数形式"}[reason]||"可接受的答案";
+   head="✅ 算对了！ +"+pts+" 分<br>你答的 <b>"+escHtml(String(raw).trim())+"</b> 也是对的（"+rn+"），本题目标词是 <b>"+w.word+"</b>（"+w.cn+"），目标词形："+formLabel(w)+"。";
+ }else if(kind==="close"){
+   f.className="feedback show mid";
+   head="🟡 很接近，给一半分 +"+pts+" 分<br>正确拼写是 <b>"+w.word+"</b>（"+w.cn+"），你写的是 <b>"+escHtml(String(raw).trim())+"</b>，只差一两个字母——记牢这个差别。";
+ }else{
+   f.className="feedback show bad";
+   head="❌ 不算对<br><b>"+escHtml(String(raw).trim())+"</b> 是 <b>"+w.word+"</b> 的缩写说法；托福考的是正式词形，拼写题要写全称 <b>"+w.word+"</b>（"+w.cn+"）。";
+ }
+ f.innerHTML=head+tail;
+ $("qNext").classList.remove("hidden"); $("qNext").textContent=state.quiz.cur>=state.quiz.list.length-1?"查看结果 🏆":"下一题 →";
+ autoSaveSoon();
+}
 function checkSpell(){
- var q=state.quiz; if(q.answered)return; var w=q.list[q.cur]; var v=$("spellInput").value.trim().toLowerCase();
- if(!v)return; q.answered=true; var ok=v===w.word;
- if(ok){q.combo++;q.maxCombo=Math.max(q.maxCombo,q.combo);var pts=15+(q.combo>=3?4:0);q.score+=pts;q.correct++;addXP(10);feedback(true,w,pts)}
- else{q.combo=0;q.wrong.push(w);if(!state.status[w.id])state.status[w.id]="weak";feedback(false,w,0);renderWeak();renderList()}
- noteAnswer(w,ok);
+ var q=state.quiz; if(q.answered)return; var w=q.list[q.cur]; var raw=$("spellInput").value;
+ var g=gradeSpell(w,raw);
+ if(g.tier==="empty")return; q.answered=true;
+ if(g.tier==="exact"||g.tier==="accept"){
+   q.combo++;q.maxCombo=Math.max(q.maxCombo,q.combo);var pts=15+(q.combo>=3?4:0);q.score+=pts;q.correct++;addXP(10);
+   if(g.tier==="exact")feedback(true,w,pts);else spellFeedback("accept",w,pts,raw,g.reason);
+   noteAnswer(w,true);
+ }else if(g.tier==="close"){
+   var pts2=Math.round(15/2);q.score+=pts2;addXP(5);
+   spellFeedback("close",w,pts2,raw,"");
+   noteAnswer(w,false);
+ }else{
+   q.combo=0;q.wrong.push(w);if(!state.status[w.id])state.status[w.id]="weak";renderWeak();renderList();
+   if(g.tier==="abbr")spellFeedback("abbr",w,0,raw,"");else feedback(false,w,0);
+   noteAnswer(w,false);
+ }
  $("qCombo").textContent="Combo ×"+q.combo;$("qScore").textContent="得分 "+q.score;
 }
 $("spellInput").addEventListener("keydown",function(e){if(e.key==="Enter")checkSpell()});
