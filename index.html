@@ -215,6 +215,11 @@ button{font-family:inherit;cursor:pointer}
 .stbadge{font-size:11.5px;font-weight:800;padding:2px 9px;border-radius:999px;background:var(--surface2);color:var(--muted);white-space:nowrap}
 .stbadge.mastered{background:var(--teal-light);color:var(--teal)}
 .stbadge.weak{background:var(--coral-light);color:var(--coral)}
+.lchips{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.lchip{border:1px solid var(--line);background:var(--surface);color:var(--muted);font-weight:800;font-size:13px;padding:6px 13px;border-radius:999px;cursor:pointer}
+.lchip .lchip-n{font-weight:900;color:var(--ink);margin-left:2px}
+.lchip.active{background:var(--teal);border-color:var(--teal);color:#fff}
+.lchip.active .lchip-n{color:#fff}
 /* ===== 记录页：总览在前、词本为主、账户设置收起 ===== */
 .rec-h{font-family:"Noto Serif SC","Songti SC","STSong","SimSun",serif;font-size:22px;margin:0;line-height:1.25}
 .rec-h2{font-family:"Noto Serif SC","Songti SC","STSong","SimSun",serif;font-size:20px;margin:30px 0 4px;line-height:1.3}
@@ -458,6 +463,12 @@ button{font-family:inherit;cursor:pointer}
   <h2 class="rec-h2">已学词本</h2>
   <p class="section-sub" id="learnedSub">学过的每一个词都会记在这里（课程里学过的、标记过的、浏览过的），按课程顺序排列，点任意词可跳回学习卡复习。</p>
   <input class="searchbox rec-search" id="learnedSearch" placeholder="在已学词中搜索单词或中文释义…" aria-label="在已学词中搜索" oninput="learnedFilter=this.value;learnedShown=100;renderLearned()">
+  <div class="lchips" id="learnedChips" role="group" aria-label="按掌握状态筛选已学词">
+    <button type="button" class="lchip active" data-lf="all" onclick="setLearnedChip('all')">全部 <span class="lchip-n" id="lcAll">0</span></button>
+    <button type="button" class="lchip" data-lf="mastered" onclick="setLearnedChip('mastered')">已掌握 <span class="lchip-n" id="lcMastered">0</span></button>
+    <button type="button" class="lchip" data-lf="weak" onclick="setLearnedChip('weak')">还不熟 <span class="lchip-n" id="lcWeak">0</span></button>
+    <button type="button" class="lchip" data-lf="unmastered" onclick="setLearnedChip('unmastered')">未掌握 <span class="lchip-n" id="lcUnmastered">0</span></button>
+  </div>
   <div class="hist" id="learnedList"><div class="empty">还没有学过的词 —— 先去学一课，这里就会出现你的词本。</div></div>
   <p style="margin:12px 0 0"><button class="btn hidden" id="learnedMore" onclick="moreLearned()">显示更多 ↓</button></p>
 
@@ -1146,7 +1157,7 @@ var ARTBG={meticulous:"#ECFDF5",ambiguous:"#FFF7ED",proliferate:"#F0FDF9",resili
 
 var state={idx:0,method:"root",filter:"全部",unit:"全部",themeSel:"全部",q:"",status:{},xp:0,streak:0,bestStreak:0,
  quiz:{mode:"choice",count:20,list:[],cur:0,score:0,combo:0,maxCombo:0,correct:0,answered:false,timer:null,sec:0,wrong:[],scopeLabel:"",kind:"review",mixed:false},
- history:[],viewed:{},lessonSize:5,lessonNo:1,lessonPos:0,lessonSeen:{},lessonBonus:{},quizPool:null,learnedAt:{},wstat:{}};
+ history:[],viewed:{},lessonSize:5,lessonNo:1,lessonPos:0,lessonSeen:{},lessonBonus:{},quizPool:null,learnedAt:{},wstat:{},wrong:{},marked:{}};
 var profiles={}; var curProfile="学习者 A";
 var learnMode="course"; var quizScopeTouched=false;
 /* 课程模式：全词库按固定随机顺序（非字母顺序、每次打开都一样）编成一课一课，每课固定 5 词，不提供调整 */
@@ -1324,7 +1335,7 @@ function stepWord(d){
  state.idx=(state.idx+d+ALL.length)%ALL.length;showWord();window.scrollTo({top:0,behavior:"smooth"})
 }
 function shuffleWord(){var n;do{n=Math.floor(Math.random()*ALL.length)}while(n===state.idx);state.idx=n;showWord()}
-function markWord(s){var w=cur();var prev=state.status[w.id];var first=!prev;state.status[w.id]=s;touchLearned(w.id);if(learnMode==="course")state.lessonSeen[w.id]=true;/* 每个词的标记 XP 与连胜都只在第一次标记时计一次：之后再点（包括来回切换还不熟/已掌握）只更新掌握状态，不再加 XP、也不再加连胜，防止同一词反复点击刷分 */if(first)addXP(s==="mastered"?10:5);showWord();renderWeak();renderLearned();if(first&&s==="mastered"){state.streak++;state.bestStreak=Math.max(state.bestStreak,state.streak)}if(learnMode==="course"){renderCourse();if(lessonIsDone(state.lessonNo)&&!state.lessonBonus[lessonKey(state.lessonNo)])completeLesson()}}
+function markWord(s){var w=cur();var firstManual=!state.marked[w.id];state.status[w.id]=s;touchLearned(w.id);if(s==="mastered")delete state.wrong[w.id];if(learnMode==="course")state.lessonSeen[w.id]=true;/* 标记 XP 与连胜只在每个词第一次手动标记时计：已掌握 +10 / 还不熟 +5，连胜只在第一次手动标记为已掌握时 +1；之后再点（包括来回切换还不熟/已掌握）只更新掌握状态，不再加 XP、也不再加连胜。测试改过的状态不算手动标记——之后第一次手动标记仍按此规则发 */if(firstManual){state.marked[w.id]=1;addXP(s==="mastered"?10:5);if(s==="mastered"){state.streak++;state.bestStreak=Math.max(state.bestStreak,state.streak)}}showWord();renderWeak();renderLearned();if(learnMode==="course"){renderCourse();if(lessonIsDone(state.lessonNo)&&!state.lessonBonus[lessonKey(state.lessonNo)])completeLesson()}}
 function speakWord(){try{var u=new SpeechSynthesisUtterance(cur().word);u.lang="en-US";u.rate=.85;speechSynthesis.cancel();speechSynthesis.speak(u)}catch(e){}}
 function flipHint(){state.method="story";syncMTabs();renderPanel();$("panel").scrollIntoView({behavior:"smooth"})}
 function syncMTabs(){document.querySelectorAll(".mtab").forEach(function(t){t.classList.toggle("active",t.dataset.m===state.method)})}
@@ -1495,6 +1506,22 @@ function weightedSample(pool,n){
  keyed.sort(function(a,b){return b.k-a.k});
  return keyed.slice(0,n).map(function(x){return x.w});
 }
+/* 测试/考试对掌握状态的影响（三种测试都适用，最近一次事件决定状态）：
+   答对 → 已掌握（覆盖还不熟与未标记），并移出错词本；没学过的词在整体测试里答对，同样算已掌握并进已学词本。
+   答错 → 只有当前是已掌握才降为还不熟；本来还不熟或未标记的不变。答错一律记入错词本，
+   但未学过的词答错只进错词本、不进已学词本（不写 status、不算已学）。
+   测试改状态不发标记 XP、也不加连胜（答题本身已有 XP）；降级不扣 XP、不动连胜。 */
+function applyTestResult(w,ok){
+ if(ok){
+   state.status[w.id]="mastered";
+   touchLearned(w.id);
+   delete state.wrong[w.id];
+ }else{
+   if(state.status[w.id]==="mastered")state.status[w.id]="weak";
+   state.wrong[w.id]=true;
+ }
+ autoSaveSoon();
+}
 function noteAnswer(w,ok){
  var st=state.wstat[w.id]||(state.wstat[w.id]={n:0,w:0,box:0,last:0});
  st.n++; st.last=Date.now();
@@ -1552,8 +1579,8 @@ function answerChoice(btn,ok,w){
  var q=state.quiz; if(q.answered)return; q.answered=true;
  document.querySelectorAll(".opt").forEach(function(o){o.disabled=true; if(o.textContent===w.cn)o.classList.add("correct")});
  if(!ok)btn.classList.add("wrong");
- if(ok){q.combo++;q.maxCombo=Math.max(q.maxCombo,q.combo);var pts=10+(q.combo>=3?4:0);q.score+=pts;q.correct++;addXP(8);feedback(true,w,pts)}
- else{q.combo=0;q.wrong.push(w);if(!state.status[w.id])state.status[w.id]="weak";feedback(false,w,0);renderWeak();renderList()}
+ if(ok){q.combo++;q.maxCombo=Math.max(q.maxCombo,q.combo);var pts=10+(q.combo>=3?4:0);q.score+=pts;q.correct++;addXP(8);applyTestResult(w,true);feedback(true,w,pts)}
+ else{q.combo=0;q.wrong.push(w);applyTestResult(w,false);feedback(false,w,0);renderWeak();renderList()}
  noteAnswer(w,ok);
  $("qCombo").textContent="Combo ×"+q.combo;$("qScore").textContent="得分 "+q.score;
 }
@@ -1728,15 +1755,15 @@ function checkSpell(){
  var g;try{g=gradeSpell(w,raw)}catch(e){g={tier:normSpell(raw)===normSpell(w.word)?"exact":"wrong"}}
  if(g.tier==="empty")return; q.answered=true;
  if(g.tier==="exact"||g.tier==="accept"){
-   q.combo++;q.maxCombo=Math.max(q.maxCombo,q.combo);var pts=15+(q.combo>=3?4:0);q.score+=pts;q.correct++;addXP(10);
+   q.combo++;q.maxCombo=Math.max(q.maxCombo,q.combo);var pts=15+(q.combo>=3?4:0);q.score+=pts;q.correct++;addXP(10);applyTestResult(w,true);
    if(g.tier==="exact")feedback(true,w,pts);else spellFeedback("accept",w,pts,raw,g.reason);
    noteAnswer(w,true);
  }else if(g.tier==="close"){
-   var pts2=Math.round(15/2);q.score+=pts2;addXP(5);
+   var pts2=Math.round(15/2);q.score+=pts2;addXP(5);applyTestResult(w,false);
    spellFeedback("close",w,pts2,raw,"");
    noteAnswer(w,false);
  }else{
-   q.combo=0;q.wrong.push(w);if(!state.status[w.id])state.status[w.id]="weak";renderWeak();renderList();
+   q.combo=0;q.wrong.push(w);applyTestResult(w,false);renderWeak();renderList();
    if(g.tier==="abbr")spellFeedback("abbr",w,0,raw,"");else feedback(false,w,0);
    noteAnswer(w,false);
  }
@@ -1760,7 +1787,7 @@ function finishQuiz(){
  if(q.kind==="exam"){det+=" · 及格线 60%："+(pct>=60?"已及格":"还差 "+(60-pct)+" 个百分点，建议复习错词本后再考")}
  if(q.kind==="review"){det+=" · 遗忘曲线已按本轮结果更新：答错的词将优先复习，答对的词复习间隔延长"}
  $("rDetail").textContent=det;
- $("qProg").style.width="100%"; renderStats(); renderHist(); renderWeak();
+ $("qProg").style.width="100%"; renderStats(); renderHist(); renderWeak(); renderLearned();
  var quotes=["“词汇量不是背出来的，是在一次次‘想起来’里长出来的。”","定期复习是保持记忆的关键。","托福阅读中遇到的每个熟词，都来自平时的积累。","错词本记录的是需要优先复习的内容。"];
  $("quoteBox").textContent=quotes[Math.floor(Math.random()*quotes.length)];
  autoSave();
@@ -1770,7 +1797,8 @@ function renderHist(){
  el.innerHTML=state.history.map(function(h){return "<div class='histitem'><span><b>"+escHtml(h.mode)+"</b> · "+h.correct+"/"+h.total+" 题对 · 最高连对 ×"+h.combo+"<br><small>"+escHtml(h.time)+" 完成</small></span><b style='font-family:Spectral,Georgia,serif;font-size:20px;color:var(--teal)'>"+h.score+" 分 · "+h.pct+"%</b></div>"}).join("");
 }
 function renderWeak(){
- var weak=ALL.filter(function(w){return state.status[w.id]==="weak"});
+ /* 错词本 = 标记/降级为「还不熟」的词 + 测试中答错记下的词（含还没学过、只在整体测试里答错的词——它们只进错词本，不进已学词本） */
+ var weak=ALL.filter(function(w){return state.status[w.id]==="weak"||(state.wrong[w.id]&&state.status[w.id]!=="mastered")});
  var el=$("weakList");
  if(!weak.length){el.innerHTML="<div class='empty'>暂无错词。保持住！</div>";return}
  el.innerHTML=weak.map(function(w){var i=ALL.indexOf(w);return "<div class='histitem'><span><b class='wname'>"+w.word+"</b> · "+w.cn+"</span><button class='btn primary' onclick='goWord("+i+")'>去复习 →</button></div>"}).join("");
@@ -1778,6 +1806,9 @@ function renderWeak(){
 /* ===== 已学词本：学过的每个词都记进来，按课程顺序排，点任意词跳回学习卡 ===== */
 var learnedShown=100;
 var learnedFilter="";
+/* 已学词本状态筛选：all 全部 / mastered 已掌握 / weak 还不熟 / unmastered 未掌握（已学过但还不是已掌握＝还不熟＋已学未标记），与搜索框叠加使用 */
+var learnedChip="all";
+function setLearnedChip(f){learnedChip=f;learnedShown=100;renderLearned()}
 function learnedEntries(){
  var pos={}; COURSE.forEach(function(ix,k){pos[ALL[ix].id]=k});
  var out=[];
@@ -1794,11 +1825,19 @@ function renderLearned(){
  var el=$("learnedList"); if(!el)return;
  var all=learnedEntries(); var sub=$("learnedSub");
  var mN=all.filter(function(x){return x.st==="mastered"}).length, wN=all.filter(function(x){return x.st==="weak"}).length;
+ var uN=all.length-mN;
+ var cAll=$("lcAll"),cM=$("lcMastered"),cW=$("lcWeak"),cU=$("lcUnmastered");
+ if(cAll)cAll.textContent=all.length; if(cM)cM.textContent=mN; if(cW)cW.textContent=wN; if(cU)cU.textContent=uN;
+ document.querySelectorAll("#learnedChips .lchip").forEach(function(b){b.classList.toggle("active",b.dataset.lf===learnedChip)});
+ var list=all;
+ if(learnedChip==="mastered")list=list.filter(function(x){return x.st==="mastered"});
+ else if(learnedChip==="weak")list=list.filter(function(x){return x.st==="weak"});
+ else if(learnedChip==="unmastered")list=list.filter(function(x){return x.st!=="mastered"});
  var f=(learnedFilter||"").trim().toLowerCase();
- var list=f?all.filter(function(x){return x.w.word.toLowerCase().indexOf(f)>=0||x.w.cn.indexOf(f)>=0}):all;
- if(sub)sub.textContent=all.length?("共 "+all.length+" 个学过的词 · 已掌握 "+mN+" 个 · 还不熟 "+wN+" 个。按课程顺序排列，点任意词可跳回学习卡复习。"+(f?(" 当前筛选出 "+list.length+" 个。"):"")):("学过的每一个词都会记在这里（课程里学过的、标记过的、浏览过的），按课程顺序排列，点任意词可跳回学习卡复习。");
+ if(f)list=list.filter(function(x){return x.w.word.toLowerCase().indexOf(f)>=0||x.w.cn.indexOf(f)>=0});
+ if(sub)sub.textContent=all.length?("共 "+all.length+" 个学过的词 · 已掌握 "+mN+" 个 · 还不熟 "+wN+" 个 · 未掌握 "+uN+" 个。按课程顺序排列，点任意词可跳回学习卡复习。"+((f||learnedChip!=="all")?(" 当前筛选出 "+list.length+" 个。"):"")):("学过的每一个词都会记在这里（课程里学过的、标记过的、浏览过的），按课程顺序排列，点任意词可跳回学习卡复习。");
  if(!all.length){el.innerHTML="<div class='empty'>还没有学过的词 —— 先去学一课，这里就会出现你的词本。</div>";var mb=$("learnedMore");if(mb)mb.classList.add("hidden");return}
- if(!list.length){el.innerHTML="<div class='empty'>已学词中没有匹配的词。</div>";var mb3=$("learnedMore");if(mb3)mb3.classList.add("hidden");return}
+ if(!list.length){el.innerHTML="<div class='empty'>当前筛选下没有词。</div>";var mb3=$("learnedMore");if(mb3)mb3.classList.add("hidden");return}
  var html="",lastLesson=null;
  list.slice(0,learnedShown).forEach(function(x){
    if(x.lesson!==lastLesson){lastLesson=x.lesson;html+="<div class='lesson-head'>第 "+x.lesson+" 课</div>"}
@@ -1811,13 +1850,13 @@ function renderLearned(){
 function moreLearned(){learnedShown+=100;renderLearned()}
 function goWord(i){state.idx=i;setLearnMode("browse");switchView("learn");showWord()}
 /* 多用户档案：每人一份独立进度，可导出为各自的文件 */
-function snapshot(){return {status:state.status,xp:state.xp,streak:state.streak,bestStreak:state.bestStreak,history:state.history,viewed:state.viewed,lessonSize:state.lessonSize,lessonNo:state.lessonNo,lessonPos:state.lessonPos,lessonSeen:state.lessonSeen,lessonBonus:state.lessonBonus,learnedAt:state.learnedAt,wstat:state.wstat}}
+function snapshot(){return {status:state.status,xp:state.xp,streak:state.streak,bestStreak:state.bestStreak,history:state.history,viewed:state.viewed,lessonSize:state.lessonSize,lessonNo:state.lessonNo,lessonPos:state.lessonPos,lessonSeen:state.lessonSeen,lessonBonus:state.lessonBonus,learnedAt:state.learnedAt,wstat:state.wstat,wrong:state.wrong,marked:state.marked}}
 function escHtml(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
 function _pnum(v,d){v=Number(v);return isFinite(v)?v:(d||0)}
 /* 进度清洗：导入文件与本地自动存档都可能被他人改过，恢复前一律校验——
    status 只留 mastered/weak 白名单值，数值字段强制转数字，历史条目截断并转义后才渲染 */
 function sanitizeProgress(s){
- var out={status:{},xp:0,streak:0,bestStreak:0,history:[],viewed:{},lessonSize:5,lessonNo:0,lessonPos:0,lessonSeen:{},lessonBonus:{},learnedAt:{},wstat:{}};
+ var out={status:{},xp:0,streak:0,bestStreak:0,history:[],viewed:{},lessonSize:5,lessonNo:0,lessonPos:0,lessonSeen:{},lessonBonus:{},learnedAt:{},wstat:{},wrong:{},marked:{}};
  if(!s||typeof s!=="object")return out;
  var ids={}; ALL.forEach(function(w){ids[w.id]=1});
  if(s.status&&typeof s.status==="object"){for(var k in s.status){if(ids[k]&&(s.status[k]==="mastered"||s.status[k]==="weak"))out.status[k]=s.status[k]}}
@@ -1828,11 +1867,16 @@ function sanitizeProgress(s){
  if(s.lessonBonus&&typeof s.lessonBonus==="object"){var nb=0;for(var k4 in s.lessonBonus){if(s.lessonBonus[k4]&&nb<400){out.lessonBonus[k4]=1;nb++}}}
  if(s.learnedAt&&typeof s.learnedAt==="object"){for(var k5 in s.learnedAt){var tv=_pnum(s.learnedAt[k5],0);if(ids[k5]&&tv>0)out.learnedAt[k5]=tv}}
  if(s.wstat&&typeof s.wstat==="object"){for(var k6 in s.wstat){var sw=s.wstat[k6];if(ids[k6]&&sw&&typeof sw==="object")out.wstat[k6]={n:Math.max(0,Math.floor(_pnum(sw.n,0))),w:Math.max(0,Math.floor(_pnum(sw.w,0))),box:Math.min(5,Math.max(0,Math.floor(_pnum(sw.box,0)))),last:Math.max(0,_pnum(sw.last,0))}}}
+ if(s.wrong&&typeof s.wrong==="object"){for(var k7 in s.wrong){if(ids[k7]&&s.wrong[k7])out.wrong[k7]=true}}
+ /* marked 记录「已手动标记过」的词，决定标记 XP/连胜只发第一次；旧存档没有这个字段时，
+    用已有 status 的词回填——这些词要么手动标记过、要么已被测试改过状态，都不再重复发标记 XP */
+ if(s.marked&&typeof s.marked==="object"){for(var k8 in s.marked){if(ids[k8]&&s.marked[k8])out.marked[k8]=1}}
+ else{for(var k9 in out.status)out.marked[k9]=1}
  out.lessonSize=5; /* 每课固定 5 词：旧存档里 10 / 15 词的设置一律按 5 词重新分课，已学词与掌握状态按词保留 */
  out.lessonNo=Math.max(0,Math.floor(_pnum(s.lessonNo,0))); out.lessonPos=Math.max(0,Math.floor(_pnum(s.lessonPos,0)));
  return out;
 }
-function restore(s){var c=sanitizeProgress(s);state.status=c.status;state.xp=c.xp;state.streak=c.streak;state.bestStreak=c.bestStreak;state.history=c.history;state.viewed=c.viewed;state.lessonSize=c.lessonSize;state.lessonNo=c.lessonNo;state.lessonPos=c.lessonPos;state.lessonSeen=c.lessonSeen;state.lessonBonus=c.lessonBonus;state.learnedAt=c.learnedAt;state.wstat=c.wstat}
+function restore(s){var c=sanitizeProgress(s);state.status=c.status;state.xp=c.xp;state.streak=c.streak;state.bestStreak=c.bestStreak;state.history=c.history;state.viewed=c.viewed;state.lessonSize=c.lessonSize;state.lessonNo=c.lessonNo;state.lessonPos=c.lessonPos;state.lessonSeen=c.lessonSeen;state.lessonBonus=c.lessonBonus;state.learnedAt=c.learnedAt;state.wstat=c.wstat;state.wrong=c.wrong;state.marked=c.marked}
 function switchProfile(){
  var name=$("profileName").value.trim(); if(!name){$("profileHint").textContent="先输入一个名字再切换。";return}
  autoSave();
