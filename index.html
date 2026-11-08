@@ -338,9 +338,9 @@ button{font-family:inherit;cursor:pointer}
             </div>
           </div>
         </div>
-        <div class="visual">
+        <div class="visual" id="visualBox">
           <div class="visual-art" id="wArt"></div>
-          <div class="visual-txt"><small>IMAGE MEMORY · 图像记忆锚点</small><p id="wVisual"></p></div>
+          <div class="visual-txt" id="wVisualTxt"><small>IMAGE MEMORY · 图像记忆锚点</small><p id="wVisual"></p></div>
         </div>
         <div class="method-tabs" id="mtabs">
           <button class="mtab active" data-m="root">🧩 词根词缀</button>
@@ -841,12 +841,12 @@ function buildDetail(w){ensureBigData();
   rootNote="这个词没有可以硬套的常见词根，就用<b>音节积木法</b>："+w.word+" = "+chunks.join(" · ")+"。先按积木读准发音，再把整体和「"+w.cn+"」绑定——读三遍、拼三遍、默写一遍，比死盯着字母硬背有效得多。";
   origin=realOrigin?realOrigin:"来源与用法线索：<b>"+w.word+"</b> 属于需要整体认读的词，词形里没有可以硬拆的常见词根。它在托福中的主场是"+ti[2]+"，核心义非常稳定，就是「"+w.cn+"」。这类词最有效的记法是“场景绑定”：每次复习都把它放回"+ti[2]+"的画面里，而不是孤立地背字母顺序。";
  }
- var cj=chunks.join(" · "),story;
+ var story,visual;
  var scStory=sceneFor(w);
- story=scStory.desc+" 故事记法：把这一幕放回"+ti[3]+"里重播一遍，再按 "+cj+" 分段念出 "+w.word+"——画面演到哪，字母就跟到哪。下次在"+ti[2]+"中再遇到它，先想起这一幕，意思「"+w.cn+"」会自己浮出来。";
- var L=w.word[0].toUpperCase(),visual;
- if(h%2)visual=ti[0]+" "+ti[3]+"——先把「"+w.cn+"」的画面定格下来，再把 "+w.word+" 的首字母 "+L+" 放大成画面的主角。想不起词义时，先回忆这幅画，意思跟着就回来了。";
- else visual="闭上眼："+ti[3]+"浮现在眼前，画面下方有一条字幕，只写着 "+w.word+" = "+w.cn+"。把这条字幕出声读一遍，这个词就和这幅画牢牢绑在一起了。";
+ /* 故事与联想只用该词自己的真实画面说明（手写联想 / 画面短语 / 可核实的词根抓手），
+    不再附加「分段念出、字幕绑定」之类的套话尾巴；没有真实材料时留空，页面不硬凑 */
+ story=scStory.desc;
+ visual=scStory.desc;
  return{pos:posInfo[0],en:(typeof EN_DEF!=="undefined"&&EN_DEF[w.word])?EN_DEF[w.word]:("Core meaning: "+w.cn+" — a high-frequency word in "+ti[2]+"."),root:rootArr,rootNote:rootNote,origin:origin,story:story,visual:visual,ex:buildExamples(w,posInfo[1],ti),syn:[],ant:[],stars:stars,icon:ti[0],related:rel};
 }
 function getDetail(w){
@@ -858,9 +858,8 @@ function getDetail(w){
 }
 var MNEMO={};function load_MNEMO(){var d=window.__TOEFL_DATA__&&window.__TOEFL_DATA__["data-mnemo"];if(d)MNEMO=d;return MNEMO}
 
-/* ===== 联想说明生成器：每个词的说明由它自己的画面 + 真词根 / 英文定义核心拼成，不再套统一尾巴 =====
-   手写库 MNEMO 优先；其余词：画面短语（若有）+ 严格词根抓手（词根必须在词首或真前缀之后，避免 phenomenon 误抓 nom 这类假词根）
-   或英文定义核心句（该词自己的 WordNet 定义，不是模板）。 */
+/* ===== 联想说明生成器：只用真实材料——手写联想库 MNEMO、该词自己的画面短语、可核实的词根抓手 =====
+   三者都没有时返回空串，词卡会隐藏整个联想板块；绝不用「分段读三遍」之类的模板硬凑联想。 */
 function defHook(en){
  if(!en)return "";
  var s=(" "+en+" ").replace(/\([^)]*\)/g," ").replace(/`/g,"").replace(/\s+/g," ").trim();
@@ -888,18 +887,17 @@ function mnemonicFor(w,phrase){ensureBigData();
   }
   if(useParts){
    out+="记 "+w.word+" 先拆开看："+an.parts.map(function(r){return r[0]+"「"+String(r[1]).replace(/^(词根|前缀|后缀)：/,"")+"」"}).join(" + ")+"——拼起来正是 "+w.word+" = "+w.cn+"。";
-  }else{
-   var cj=splitChunks(w.word).join(" · ");
-   if(phrase)out+="记 "+w.word+"：先盯住画面里的「"+cnS+"」，再按 "+cj+" 分段读两遍 "+w.word+"，让读音和画面同时出现——"+w.word+" = "+w.cn+"。";
-   else out+="记 "+w.word+"：没有现成词根可拆，就按 "+cj+" 分段读——读一遍，想一遍「"+cnS+"」，三遍之后词形和意思就绑住了："+w.word+" = "+w.cn+"。";
   }
+  /* 既没有可核实的词根抓手、也拆不出真实构词时，不再硬套模板：
+     有真实画面时，上面的「画面：…」本身就是联想；连画面也没有时 out 保持为空，词卡会隐藏联想板块 */
  }
  return out;
 }
 
 /* ===== 联想图引擎 v2：按每个词自己的释义选图（不再按主题套图） =====
-   选图顺序：① 英文原词实物图鉴（精确匹配）→ ② 中文释义实物匹配 → ③ 词义场景规则（画动作/性质/抽象概念）
-   → ④ 释义字卡图（把该词的中文意思本身做成画面主角，保证不跑题）。图下方的深色标签写的就是这个词的中文意思。 */
+   选图顺序：① 英文原词实物图鉴（精确匹配）→ ② 中文释义实物匹配 → ③ 词义场景规则
+   （具体词画实物或场景，抽象词画真正贴合词义的比喻场景）。
+   三级都没命中就返回空图，词卡隐藏联想板块——不再用释义字卡兜底。图下方的深色标签写的就是这个词的中文意思。 */
 function _r(x,y,w,h,f,rx,o){return "<rect x='"+x+"' y='"+y+"' width='"+w+"' height='"+h+"' rx='"+(rx||0)+"' fill='"+f+"'"+(o?" opacity='"+o+"'":"")+"/>"}
 function _c(cx,cy,r,f,o){return "<circle cx='"+cx+"' cy='"+cy+"' r='"+r+"' fill='"+f+"'"+(o?" opacity='"+o+"'":"")+"/>"}
 function _e(cx,cy,rx,ry,f,o){return "<ellipse cx='"+cx+"' cy='"+cy+"' rx='"+rx+"' ry='"+ry+"' fill='"+f+"'"+(o?" opacity='"+o+"'":"")+"/>"}
@@ -1115,7 +1113,6 @@ harp:function(){return picSky("#FFF6E8","#F3E3CE")+_ps("M64 14 V112","#C9922E",7
 harmonica:function(){return _r(0,0,200,140,"#FDF3E7")+_r(0,102,200,38,"#EAD9BC")+_r(45,52,110,36,"#C7D0D8",8)+_ps("M45 64 H155","#8FA0AE",2.5)+_c(58,76,3.5,"#42586E")+_c(72,76,3.5,"#42586E")+_c(86,76,3.5,"#42586E")+_c(100,76,3.5,"#42586E")+_c(114,76,3.5,"#42586E")+_c(128,76,3.5,"#42586E")+_c(142,76,3.5,"#42586E")+_emo(164,32,15,"🎵")+_emo(36,32,13,"🎶")}
 };
 function scenePic(key,cnS){var inner=SCENES[key]?SCENES[key]():"";return{svg:"<svg viewBox='0 0 200 140' width='100%' role='img' aria-label='联想图："+cnS+"'>"+inner+picLabel(cnS)+"</svg>",bg:"#F7FAF5"}}
-function cardPic(w,cnS){var cn=(w.cn||"").split(/[；;]/)[0];var fs=cn.length<=4?31:cn.length<=6?26:cn.length<=9?21:17;var svg="<svg viewBox='0 0 200 140' width='100%' role='img' aria-label='联想图："+cnS+"'>"+_r(0,0,200,140,"#FFF6E2")+_r(8,8,184,124,"none",10)+_ps("M16 16 H184 V124 H16 Z","#E9C979",2)+_pf("M100 104 C86 94 66 92 48 96 V118 C66 114 86 116 100 124 C114 116 134 114 152 118 V96 C134 92 114 94 100 104 Z","#F3E3B8")+_tx(100,58,fs,"#7C2D12",cn,1)+_tx(100,86,17,"#0F766E",w.word,1)+_tx(100,100,10,"#B08A3E","= 上面的中文意思",0)+_emo(28,34,15,"🔖")+_emo(172,34,15,"✏️")+"</svg>";return{svg:svg,bg:"#FFF6E2",desc:mnemonicFor(w,null)}}
 var PIC_RULES=[];function load_PIC_RULES(){var d=window.__TOEFL_DATA__&&window.__TOEFL_DATA__["data-pic-rules"];if(d)PIC_RULES=d;return PIC_RULES}
 /* 宽泛英文键：这些词在英文释义里到处顺带出现（如 person / time / result），只有出现在释义开头的主干位置（前 4 个词）才算数，避免顺带提及造成的误配 */
 var GENERIC_EN={"person":1,"individual":1,"people":1,"public":1,"group":1,"society":1,"team":1,"community":1,"time":1,"moment":1,"view":1,"see":1,"look":1,"observe":1,"result":1,"consequence":1,"cause":1,"effect":1,"pass":1,"last":1,"race":1,"draw":1,"light":1,"fall":1,"drop":1,"initial":1,"spread":1,"suppos":1,"fair":1,"balance":1,"price":1,"cost":1,"heat":1,"burn":1,"legal":1,"alter":1,"reasoning":1,"new":1,"fresh":1,"speed":1,"instant":1,"immediate":1,"device":1,"instrument":1,"pressure":1,"taste":1,"change":1,"convert":1,"shift":1,"switch":1,"structure":1,"build":1,"construct":1,"law":1,"court":1,"particle":1,"cook":1,"art":1,"read":1,"book":1,"different":1,"correct":1,"young":1,"concept":1,"notion":1,"theory":1,"protect":1,"divide":1,"split":1,"separate":1,"origin":1,"warm":1,"hard":1,"solid":1,"firm":1,"stiff":1,"rotat":1,"terminat":1};
@@ -1136,7 +1133,8 @@ function sceneFor(w){ensureBigData();
  function keyHit(key){if(/[^\x00-\xff]/.test(key))return cn.indexOf(key)>=0;if(key.indexOf(" ")>=0)return enLow.indexOf(key)>=0;if(tokHit(wordToks,key))return true;if(GENERIC_EN[key])return tokHit(genusToks,key);return tokHit(defToks,key)}
  for(var j=0;j<PIC_RULES.length;j++){var r=PIC_RULES[j];var rb=RULE_NOT[r[1]];if(rb){var blocked=false;for(var b2=0;b2<rb.length;b2++){if(cn.indexOf(rb[b2])>=0){blocked=true;break}}if(blocked)continue}
   for(var k=0;k<r[0].length;k++){var kk=r[0][k];if(r[1]==="person"&&/^[^\x00-\xff]$/.test(kk)){var hd=cn.split(/[；;，、\/]/)[0];if(hd.charAt(hd.length-1)!==kk)continue}if(keyHit(kk)){var p3=scenePic(r[1],cnS);return{svg:p3.svg,bg:p3.bg,desc:mnemonicFor(w,r[2])}}}}
- return cardPic(w,cnS);
+ /* 没有任何真实匹配（逐词图、释义实物、场景规则都没命中）时不放图：返回空图，词卡会隐藏联想板块，不用字卡冒充联想图 */
+ return{svg:"",bg:"",desc:mnemonicFor(w,null)};
 }
 function artFor(w,d){return sceneFor(w).svg}
 
@@ -1231,7 +1229,17 @@ function showWord(){
  var w=cur(); var d=getDetail(w); state.viewed[w.id]=true;
  $("wPos").textContent=d.pos; $("wTheme").textContent=w.theme; if($("wUnit"))$("wUnit").textContent="Unit "+w.unit+" · 第 "+(state.idx+1)+" / "+ALL.length+" 词"; $("wStars").textContent="难度 "+"★".repeat(d.stars)+"☆".repeat(5-d.stars);
  $("wWord").textContent=w.word; $("wPhon").textContent=w.phon||"点 🔊 听发音 · 本词精讲见下方四个页签"; $("wCn").textContent=w.cn; $("wEn").textContent=d.en.charAt(0).toUpperCase()+d.en.slice(1);
- var sc=sceneFor(w); $("wArt").style.background=w.core?sc.bg:(ARTBG[w.id]||sc.bg); $("wArt").innerHTML=w.core?sc.svg:(ARTS[w.id]||sc.svg); $("wVisual").textContent=w.core?sc.desc:d.visual;
+ var sc=sceneFor(w);
+ var picSvg=w.core?sc.svg:(ARTS[w.id]||sc.svg), picBg=w.core?sc.bg:(ARTBG[w.id]||sc.bg), visTxt=w.core?sc.desc:d.visual;
+ var vb=$("visualBox");
+ /* 联想板块只展示真实材料：有贴合词义的图才放图，有真实联想文案才放文案；两者都没有就整块隐藏，不拿字卡和套话填充 */
+ if(!picSvg&&!visTxt){vb.style.display="none"}
+ else{
+  vb.style.display=""; vb.style.gridTemplateColumns=(picSvg&&visTxt)?"":"1fr";
+  $("wArt").style.display=picSvg?"":"none"; $("wVisualTxt").style.display=visTxt?"":"none";
+  if(picSvg){$("wArt").style.background=picBg;$("wArt").innerHTML=picSvg}
+  if(visTxt)$("wVisual").textContent=visTxt;
+ }
  renderList(); renderPanel(); renderStats(); syncBackBar(); autoSaveSoon();
 }
 /* ===== 词根家族链接：同根词可点跳转、跳完能返回 =====
@@ -1687,7 +1695,7 @@ function importProgress(ev){
    避免手机打开瞬间主线程长时间忙碌、页面迟迟不能就绪 */
 /* 精讲数据（英文释义 / 词源 / 联想 / 逐词图像 / 图像规则）放在 assets/ 的六个数据文件里，页面打开后按需装载：
    主文档因此足够小，能在 app 内直接打开；数据到达前各处先用空数据走已有的兜底内容，到达后自动重绘当前词卡 */
-var BIG_FILES=["data-en-def","data-etym","data-origins","data-mnemo","data-pic-word","data-pic-rules"];
+var BIG_FILES=["data-mnemo","data-pic-word","data-pic-rules","data-en-def","data-etym","data-origins"];
 var bigLoading=false,bigReady=false,bigRound=0,bigRetries=0,bigScheduled=false;
 function bigMissing(){return BIG_FILES.filter(function(id){return !(window.__TOEFL_DATA__&&window.__TOEFL_DATA__[id])})}
 function bigApply(){
@@ -1702,7 +1710,9 @@ function bigApply(){
 }
 /* 精讲数据逐个文件串行装载：一个文件下载并生效后才取下一个。
    六个文件若并行抢带宽，单个文件迟迟下不完，app 容器容易判定整页打开失败；
-   串行则每个文件都能较快完成，先到的先用（英文释义最先，图像规则最后）。 */
+   串行则每个文件都能较快完成。装载顺序把联想文案与图像数据排在最前——词卡上的
+   联想图与联想说明就靠它们，先到先用，每个文件到达后立即重绘当前词卡；
+   数据全部到齐之前，没有真实联想材料的词就隐藏联想板块，不显示任何兜底内容。 */
 function ensureBigData(){
  if(bigApply())return;
  if(bigLoading)return;
@@ -1715,6 +1725,7 @@ function ensureBigData(){
  (function next(){
   if(round!==bigRound)return;
   if(bigApply()){bigLoading=false;return}
+  if(window.__toeflBooted){try{showWord()}catch(e){}}
   var id=bigMissing()[0];
   var s=document.createElement("script");
   s.src="assets/"+id+".js";s.async=true;
