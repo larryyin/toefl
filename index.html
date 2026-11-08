@@ -1324,7 +1324,7 @@ function stepWord(d){
  state.idx=(state.idx+d+ALL.length)%ALL.length;showWord();window.scrollTo({top:0,behavior:"smooth"})
 }
 function shuffleWord(){var n;do{n=Math.floor(Math.random()*ALL.length)}while(n===state.idx);state.idx=n;showWord()}
-function markWord(s){var w=cur();var prev=state.status[w.id];var first=!prev;state.status[w.id]=s;touchLearned(w.id);if(learnMode==="course")state.lessonSeen[w.id]=true;/* 每个词的标记 XP 只在第一次标记时发一次：之后再点（包括来回切换还不熟/已掌握）只更新掌握状态，不再加 XP，防止同一词反复点击刷经验 */if(first)addXP(s==="mastered"?10:5);showWord();renderWeak();renderLearned();if(s==="mastered"&&prev!=="mastered"){state.streak++;state.bestStreak=Math.max(state.bestStreak,state.streak)}if(learnMode==="course"){renderCourse();if(lessonIsDone(state.lessonNo)&&!state.lessonBonus[lessonKey(state.lessonNo)])completeLesson()}}
+function markWord(s){var w=cur();var prev=state.status[w.id];var first=!prev;state.status[w.id]=s;touchLearned(w.id);if(learnMode==="course")state.lessonSeen[w.id]=true;/* 每个词的标记 XP 与连胜都只在第一次标记时计一次：之后再点（包括来回切换还不熟/已掌握）只更新掌握状态，不再加 XP、也不再加连胜，防止同一词反复点击刷分 */if(first)addXP(s==="mastered"?10:5);showWord();renderWeak();renderLearned();if(first&&s==="mastered"){state.streak++;state.bestStreak=Math.max(state.bestStreak,state.streak)}if(learnMode==="course"){renderCourse();if(lessonIsDone(state.lessonNo)&&!state.lessonBonus[lessonKey(state.lessonNo)])completeLesson()}}
 function speakWord(){try{var u=new SpeechSynthesisUtterance(cur().word);u.lang="en-US";u.rate=.85;speechSynthesis.cancel();speechSynthesis.speak(u)}catch(e){}}
 function flipHint(){state.method="story";syncMTabs();renderPanel();$("panel").scrollIntoView({behavior:"smooth"})}
 function syncMTabs(){document.querySelectorAll(".mtab").forEach(function(t){t.classList.toggle("active",t.dataset.m===state.method)})}
@@ -1705,7 +1705,7 @@ function gradeSpell(w,raw){
 }
 function spellFeedback(kind,w,pts,raw,reason){
  var f=$("qFeed"),d=getDetail(w);
- var tail=(d.en?"<br><small>📖 英文释义："+d.en+"</small>":"")+"<br><small>"+d.ex[0][0].replace(/<[^>]+>/g,"")+"</small>";
+ var tail=(d.en?"<br><small>📖 英文释义："+d.en+"</small>":"")+((d.ex&&d.ex[0]&&d.ex[0][0])?"<br><small>"+d.ex[0][0].replace(/<[^>]+>/g,"")+"</small>":"");
  var head="";
  if(kind==="accept"){
    f.className="feedback show good";
@@ -1724,7 +1724,8 @@ function spellFeedback(kind,w,pts,raw,reason){
 }
 function checkSpell(){
  var q=state.quiz; if(q.answered)return; var w=q.list[q.cur]; var raw=$("spellInput").value;
- var g=gradeSpell(w,raw);
+ /* 判分引擎与全部词库都在本文件内：下载的单个 HTML 离开 assets 文件夹也照常三档灵活判分，不依赖任何外部数据文件；万一判分过程异常，退回精确匹配兜底，绝不让拼写题点不动 */
+ var g;try{g=gradeSpell(w,raw)}catch(e){g={tier:normSpell(raw)===normSpell(w.word)?"exact":"wrong"}}
  if(g.tier==="empty")return; q.answered=true;
  if(g.tier==="exact"||g.tier==="accept"){
    q.combo++;q.maxCombo=Math.max(q.maxCombo,q.combo);var pts=15+(q.combo>=3?4:0);q.score+=pts;q.correct++;addXP(10);
