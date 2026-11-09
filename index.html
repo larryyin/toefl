@@ -445,7 +445,7 @@ button{font-family:inherit;cursor:pointer}
       <h2 class="rec-h">学习进度</h2>
       <span class="rec-autosave" id="autosaveStatus">自动保存已开启</span>
     </div>
-    <div id="dataHint" style="display:none;font-size:12.5px;color:var(--coral);font-weight:700;margin-top:8px">部分精讲数据（词源与联想文案）没有加载成功，相关页签暂时显示简版；翻到下一个词时会自动重试。若是在本地打开下载的页面，请确认 assets 文件夹与本页面放在同一目录。</div>
+    <div id="dataHint" style="display:none;font-size:12.5px;color:var(--coral);font-weight:700;margin-top:8px">部分精讲数据（词源、联想文案与例句）没有加载成功，相关页签暂时显示简版；翻到下一个词时会自动重试。若是在本地打开下载的页面，请确认 assets 文件夹与本页面放在同一目录。</div>
     <div class="stats rec-stats">
       <div class="stat"><small>已学词汇</small><strong id="sLearned">0 / 0</strong><em id="sLearnedSub">开始学第一个词吧</em></div>
       <div class="stat"><small>已掌握</small><strong id="sMastered">0</strong><em>点“已掌握”标记</em></div>
@@ -825,8 +825,13 @@ function relatedWords(w){
  for(var k=0;k<3&&k<mates.length;k++)out.push(mates[(idx+k)%mates.length]);
  return out;
 }
+/* 逐词手写例句库（data-examples）：例句全部逐词重写为真实语境句，分批补齐；
+   命中手写例句的词直接用手写版，未覆盖的词暂时回退下面的模板句（下一批继续替换）。 */
+var EXAMPLES={};function load_EXAMPLES(){var d=window.__TOEFL_DATA__&&window.__TOEFL_DATA__["data-examples"];if(d)EXAMPLES=d;return EXAMPLES}
 function buildExamples(w,type,ti){
  var word=w.word,cn=w.cn;
+ var hit=EXAMPLES[word.toLowerCase()];
+ if(hit&&hit.length)return hit;
  var nouns=["theory","system","process","pattern","structure","approach","result","environment"];
  var noun=nouns[hashWord(word)%nouns.length],e1;
  if(type==="v"){e1=["Learning to <b>"+word+"</b> in a real context is far more effective than only memorizing a translation.","在真实语境里学会使用 "+word+"（"+cn+"），远比只背中文翻译记得牢。"]}
@@ -1928,7 +1933,7 @@ function importProgress(ev){
    每有一份数据新到，就清掉已缓存的简版词卡详情并重绘，不让用户停留在旧简版上；
    某个文件加载失败时本轮跳过它、由 25 秒看门狗驱动下一轮重试，不无限重复请求同一个坏文件
    （否则词表会被反复重绘，用户点中的词还没打开就被刷新掉）。 */
-var BIG_FILES=["data-mnemo","data-pic-word","data-pic-rules","data-en-def","data-etym","data-origins"];
+var BIG_FILES=["data-mnemo","data-pic-word","data-pic-rules","data-en-def","data-etym","data-origins","data-examples"];
 var INLINE_FILES=["data-pic-word","data-pic-rules","data-en-def"];
 var bigLoading=false,bigReady=false,bigRound=0,bigRetries=0,bigScheduled=false,bigHave=-1;
 function inlineData(id){
@@ -1940,7 +1945,7 @@ function inlineData(id){
 function bigMissing(){return BIG_FILES.filter(function(id){return !(window.__TOEFL_DATA__&&window.__TOEFL_DATA__[id])})}
 function bigApply(){
  INLINE_FILES.forEach(inlineData);
- load_EN_DEF();load_ETYM_OVERRIDE();load_ORIGINS();load_MNEMO();load_PIC_WORD();load_PIC_RULES();
+ load_EN_DEF();load_ETYM_OVERRIDE();load_ORIGINS();load_MNEMO();load_PIC_WORD();load_PIC_RULES();load_EXAMPLES();
  var have=BIG_FILES.length-bigMissing().length;
  if(have!==bigHave){
   bigHave=have;
