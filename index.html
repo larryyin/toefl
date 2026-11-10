@@ -181,13 +181,19 @@ button{font-family:inherit;cursor:pointer}
 .lchip.part{border-color:var(--amber);color:var(--amber)}
 @media(max-width:760px){.cs-actions{width:100%}.cs-size{margin-right:auto}}
 @media(max-width:760px){.home-cards{grid-template-columns:1fr}}
+/* 自由查词：词卡独占主位、整行排在最前面；词表只保留当前词前后几个词（或少量搜索结果），
+   统一收在词卡下方，绝不挡住词本身。按课学习仍是左侧小词表 + 词卡。 */
+.learn-grid.browsing{display:flex;flex-direction:column;gap:14px}
+.learn-grid.browsing .cardcol{order:1;width:100%;min-width:0}
+.learn-grid.browsing .wordlist{order:2;width:100%;flex-direction:row;flex-wrap:wrap;align-items:stretch}
+.learn-grid.browsing .wl-btn{flex:1 1 150px}
+.bpos{flex:1 1 100%;font-size:12.5px;color:var(--muted);font-weight:700;padding:0 2px}
 @media(max-width:760px){
   .stats{grid-template-columns:1fr 1fr}
   .learn-grid{display:flex;flex-direction:column}
-  /* 按课学习时词表排在词卡下方（不抢词卡的注意力）；自由查词时搜索结果必须紧跟筛选框、
-     排在词卡上方，否则结果被整张词卡埋住，用户会以为查不到词 */
+  /* 两种模式词表都排在词卡下方：词卡永远在最前面，词才是主角 */
   .learn-grid:not(.browsing) .wordlist{order:2;margin-top:14px}
-  .learn-grid.browsing .wordlist{margin-bottom:14px}
+  .learn-grid.browsing .wordlist{margin-top:0}
   .wordlist{flex-direction:row;flex-wrap:wrap;padding-bottom:2px}
   .wl-btn{flex:1 1 30%;min-width:104px}
   .card-foot{gap:6px;padding-left:10px;padding-right:10px}
@@ -314,14 +320,13 @@ button{font-family:inherit;cursor:pointer}
   <div class="filters" id="filters">
     <input class="searchbox" id="searchBox" placeholder="🔍 搜索单词或中文释义…" oninput="state.q=this.value;renderList()">
     <button class="pill active" data-f="全部">全部</button>
-    <select id="unitSel" class="searchbox" style="flex:0 1 190px;min-width:150px" aria-label="选择单元" onchange="state.unit=this.value;renderList()"><option value="全部">📦 全部单元</option></select>
-    <select id="themeSel" class="searchbox" style="flex:0 1 170px;min-width:140px" aria-label="选择主题" onchange="state.themeSel=this.value;renderList()"><option value="全部">🏷 全部主题</option></select>
+    <select id="themeSel" class="searchbox" style="flex:0 1 190px;min-width:150px" aria-label="按主题筛选" onchange="pickTheme(this.value)"><option value="全部">🏷 全部主题</option></select>
     <button class="btn" style="padding:7px 14px;font-size:13px" onclick="shuffleWord()">🔀 随机抽一词</button>
   </div>
   <p id="listNote" style="color:var(--muted);font-size:13px;margin:0 0 10px"></p>
   <div class="learn-grid" id="learnGrid">
     <div class="wordlist" id="wordList"></div>
-    <div>
+    <div class="cardcol">
       <div id="lessonBar" class="lbar hidden">
         <button class="btn" onclick="jumpLesson(-1)">‹ 上一课</button>
         <div style="flex:1;min-width:120px">
@@ -917,7 +922,7 @@ function mnemonicFor(w,phrase){ensureBigData();
 /* ===== 联想图引擎 v2：按每个词自己的释义选图（不再按主题套图） =====
    选图顺序：① 英文原词实物图鉴（精确匹配）→ ② 中文释义实物匹配 → ③ 词义场景规则
    （具体词画实物或场景，抽象词画真正贴合词义的比喻场景）。
-   三级都没命中就返回空图，词卡隐藏联想板块——不再用释义字卡兜底。图下方的深色标签写的就是这个词的中文意思。 */
+   三级都没命中就返回空图，词卡隐藏联想板块——不再用释义字卡兜底。图下方的深色标签写的是这个词的英文词，让学习者把英文词和画面直接联系起来（中文意思词卡上已经有）。 */
 function _r(x,y,w,h,f,rx,o){return "<rect x='"+x+"' y='"+y+"' width='"+w+"' height='"+h+"' rx='"+(rx||0)+"' fill='"+f+"'"+(o?" opacity='"+o+"'":"")+"/>"}
 function _c(cx,cy,r,f,o){return "<circle cx='"+cx+"' cy='"+cy+"' r='"+r+"' fill='"+f+"'"+(o?" opacity='"+o+"'":"")+"/>"}
 function _e(cx,cy,rx,ry,f,o){return "<ellipse cx='"+cx+"' cy='"+cy+"' rx='"+rx+"' ry='"+ry+"' fill='"+f+"'"+(o?" opacity='"+o+"'":"")+"/>"}
@@ -927,7 +932,7 @@ function _ln(x1,y1,x2,y2,f,w2){return "<line x1='"+x1+"' y1='"+y1+"' x2='"+x2+"'
 function _tx(x,y,s,f,str,b){return "<text x='"+x+"' y='"+y+"' font-size='"+s+"' text-anchor='middle' fill='"+f+"'"+(b?" font-weight='800'":"")+">"+str+"</text>"}
 function _emo(x,y,s,str){return "<text x='"+x+"' y='"+y+"' font-size='"+s+"' text-anchor='middle'>"+str+"</text>"}
 function picSky(top,ground){return _r(0,0,200,140,top)+_c(172,24,13,"#FFD34D")+_e(38,26,17,7,"#FFFFFF",.92)+_e(56,22,13,6,"#FFFFFF",.92)+_r(0,112,200,28,ground)}
-function picLabel(cnShort){var s=cnShort.length>9?cnShort.slice(0,9):cnShort;var w=24+s.length*14;return _r(100-w/2,115,w,19,"#17202E",9)+"<text x='100' y='129.5' font-size='12.5' text-anchor='middle' fill='#FFFFFF' font-weight='800'>"+s+"</text>"}
+function picLabel(enWord){var s=String(enWord||"");var w=Math.min(188,30+s.length*7.6);return _r(100-w/2,115,w,19,"#17202E",9)+"<text x='100' y='129.5' font-size='12.5' text-anchor='middle' fill='#FFFFFF' font-weight='800' font-family='Georgia,serif' letter-spacing='.03em'>"+s+"</text>"}
 function cnShortOf(w){var s=(w.cn||"").split(/[；;，、\/]/)[0].trim();var guard=0;while(/(名词|重复|的|地|性|者|类)$/.test(s)&&guard<4){s=s.replace(/(名词|重复|的|地|性|者|类)$/,"").trim();guard++}if(!s)s=(w.cn||"").slice(0,6);return s.slice(0,9)}
 var PIC_BG={
 sky:function(){return picSky("#DFF3FF","#BEE3B0")},
@@ -946,7 +951,7 @@ paper:function(){return _r(0,0,200,140,"#FFF8E8")+_ps("M24 32 H176 M24 54 H176 M
 warm:function(){return _r(0,0,200,140,"#FFF1DC")+_c(178,22,12,"#FFB84D")+_r(0,114,200,26,"#F3D9AE")},
 stage:function(){return _r(0,0,200,140,"#2B2140")+"<path d='M100 2 L64 116 L136 116 Z' fill='#FFE9A8' opacity='.32'/>"+_r(0,114,200,26,"#1C1530")}
 };
-function emojiPic(emo,bg,cnS,extras){var b=(PIC_BG[bg]||PIC_BG.sky)();var ex="";if(extras&&extras.length){ex=_emo(29,54,20,extras[0])+(extras[1]?_emo(171,54,20,extras[1]):"")}return{svg:"<svg viewBox='0 0 200 140' width='100%' role='img' aria-label='联想图："+cnS+"'>"+b+_e(100,106,36,7,"#17202E",.14)+ex+_emo(100,98,60,emo)+picLabel(cnS)+"</svg>",bg:"#F4FAFF"}}
+function emojiPic(emo,bg,enWord,cnS,extras){var b=(PIC_BG[bg]||PIC_BG.sky)();var ex="";if(extras&&extras.length){ex=_emo(29,54,20,extras[0])+(extras[1]?_emo(171,54,20,extras[1]):"")}return{svg:"<svg viewBox='0 0 200 140' width='100%' role='img' aria-label='联想图："+enWord+" · "+cnS+"'>"+b+_e(100,106,36,7,"#17202E",.14)+ex+_emo(100,98,60,emo)+picLabel(enWord)+"</svg>",bg:"#F4FAFF"}}
 var PIC_WORD={};function load_PIC_WORD(){var d=window.__TOEFL_DATA__&&window.__TOEFL_DATA__["data-pic-word"];if(d)PIC_WORD=d;return PIC_WORD}
 var PIC_CN=[
 ["牛奶","🥛","indoor","一杯牛奶放在桌上"],["电影","🎬","stage","银幕上正在放映电影"],["证书","📜","paper","一张证书盖着印章"],["沙发","🛋️","indoor","一张沙发软软地摆在客厅"],["沙拉","🥗","indoor","一盘沙拉拌好端上桌"],["卫星","🛰️","space","一颗卫星绕着地球转"],["照片","📸","indoor","一张照片留住当时的瞬间"],["图表","📊","paper","一张图表用高高低低的柱子讲清数据"],["曼陀林","🎸","stage","一把曼陀林抱在怀里弹拨"],
@@ -1132,7 +1137,7 @@ rugscene:function(){return _r(0,0,200,140,"#FDF3E7")+_r(0,98,200,42,"#C9A876")+_
 harp:function(){return picSky("#FFF6E8","#F3E3CE")+_ps("M64 14 V112","#C9922E",7)+_ps("M64 16 Q118 14 142 44","#C9922E",6)+_ps("M142 44 L96 112","#A8742A",7)+_ps("M62 112 H98","#A8742A",6)+_ln(80,18,110,109,"#E8C97A",1.6)+_ln(94,20,118,107,"#E8C97A",1.6)+_ln(108,26,126,99,"#E8C97A",1.6)+_ln(121,33,133,84,"#E8C97A",1.6)+_c(64,14,5,"#A8742A")+_emo(168,36,16,"🎵")},
 harmonica:function(){return _r(0,0,200,140,"#FDF3E7")+_r(0,102,200,38,"#EAD9BC")+_r(45,52,110,36,"#C7D0D8",8)+_ps("M45 64 H155","#8FA0AE",2.5)+_c(58,76,3.5,"#42586E")+_c(72,76,3.5,"#42586E")+_c(86,76,3.5,"#42586E")+_c(100,76,3.5,"#42586E")+_c(114,76,3.5,"#42586E")+_c(128,76,3.5,"#42586E")+_c(142,76,3.5,"#42586E")+_emo(164,32,15,"🎵")+_emo(36,32,13,"🎶")}
 };
-function scenePic(key,cnS){var inner=SCENES[key]?SCENES[key]():"";return{svg:"<svg viewBox='0 0 200 140' width='100%' role='img' aria-label='联想图："+cnS+"'>"+inner+picLabel(cnS)+"</svg>",bg:"#F7FAF5"}}
+function scenePic(key,enWord,cnS){var inner=SCENES[key]?SCENES[key]():"";return{svg:"<svg viewBox='0 0 200 140' width='100%' role='img' aria-label='联想图："+enWord+" · "+cnS+"'>"+inner+picLabel(enWord)+"</svg>",bg:"#F7FAF5"}}
 var PIC_RULES=[];function load_PIC_RULES(){var d=window.__TOEFL_DATA__&&window.__TOEFL_DATA__["data-pic-rules"];if(d)PIC_RULES=d;return PIC_RULES}
 /* 宽泛英文键：这些词在英文释义里到处顺带出现（如 person / time / result），只有出现在释义开头的主干位置（前 4 个词）才算数，避免顺带提及造成的误配 */
 var GENERIC_EN={"person":1,"individual":1,"people":1,"public":1,"group":1,"society":1,"team":1,"community":1,"time":1,"moment":1,"view":1,"see":1,"look":1,"observe":1,"result":1,"consequence":1,"cause":1,"effect":1,"pass":1,"last":1,"race":1,"draw":1,"light":1,"fall":1,"drop":1,"initial":1,"spread":1,"suppos":1,"fair":1,"balance":1,"price":1,"cost":1,"heat":1,"burn":1,"legal":1,"alter":1,"reasoning":1,"new":1,"fresh":1,"speed":1,"instant":1,"immediate":1,"device":1,"instrument":1,"pressure":1,"taste":1,"change":1,"convert":1,"shift":1,"switch":1,"structure":1,"build":1,"construct":1,"law":1,"court":1,"particle":1,"cook":1,"art":1,"read":1,"book":1,"different":1,"correct":1,"young":1,"concept":1,"notion":1,"theory":1,"protect":1,"divide":1,"split":1,"separate":1,"origin":1,"warm":1,"hard":1,"solid":1,"firm":1,"stiff":1,"rotat":1,"terminat":1};
@@ -1143,16 +1148,16 @@ function sceneFor(w){ensureBigData();
  var cnS=cnShortOf(w);
  var pw=PIC_WORD[w.word];
  if(pw&&PIC_WORD_SKIP[w.word]){var sk=PIC_WORD_SKIP[w.word];for(var si=0;si<sk.length;si++){if((w.cn||"").indexOf(sk[si])>=0){pw=null;break}}}
- if(pw){var p1=emojiPic(pw[0],pw[1],cnS);return{svg:p1.svg,bg:p1.bg,desc:mnemonicFor(w,pw[2])}}
+ if(pw){var p1=emojiPic(pw[0],pw[1],w.word,cnS);return{svg:p1.svg,bg:p1.bg,desc:mnemonicFor(w,pw[2])}}
  var cn=w.cn||"";
- for(var i=0;i<PIC_CN_SORTED.length;i++){var pk=PIC_CN_SORTED[i];if(cn.indexOf(pk[0])>=0&&!cnKeyBlocked(pk[0],cn)){var p2=emojiPic(pk[1],pk[2],cnS);return{svg:p2.svg,bg:p2.bg,desc:mnemonicFor(w,pk[3])}}}
+ for(var i=0;i<PIC_CN_SORTED.length;i++){var pk=PIC_CN_SORTED[i];if(cn.indexOf(pk[0])>=0&&!cnKeyBlocked(pk[0],cn)){var p2=emojiPic(pk[1],pk[2],w.word,cnS);return{svg:p2.svg,bg:p2.bg,desc:mnemonicFor(w,pk[3])}}}
  var en=(typeof EN_DEF!=="undefined"&&EN_DEF[w.word])?EN_DEF[w.word]:(w.en||"");
  var enLow=en.toLowerCase(),defToks=enLow.split(/[^a-z]+/).filter(function(t){return t}),wordToks=w.word.toLowerCase().split(/[^a-z]+/).filter(function(t){return t}),genusToks=defToks.slice(0,4);
  var TOK_SUF={"ing":1,"tion":1,"sion":1,"ation":1,"ition":1,"ution":1,"ion":1,"ist":1,"ists":1,"ism":1,"ity":1,"ies":1,"ous":1,"ive":1,"ives":1,"ence":1,"ance":1,"ents":1,"ants":1,"ors":1,"ment":1,"ments":1,"ness":1,"ally":1,"ics":1,"ical":1,"ic":1,"s":1,"d":1,"e":1,"es":1,"ed":1,"er":1,"ers":1,"ly":1,"ty":1};
  function tokHit(toks,key){for(var i2=0;i2<toks.length;i2++){var tk=toks[i2];if(tk===key)return true;if(key.length>=4&&tk.indexOf(key)===0&&TOK_SUF[tk.slice(key.length)])return true}return false}
  function keyHit(key){if(/[^\x00-\xff]/.test(key))return cn.indexOf(key)>=0;if(key.indexOf(" ")>=0)return enLow.indexOf(key)>=0;if(tokHit(wordToks,key))return true;if(GENERIC_EN[key])return tokHit(genusToks,key);return tokHit(defToks,key)}
  for(var j=0;j<PIC_RULES.length;j++){var r=PIC_RULES[j];var rb=RULE_NOT[r[1]];if(rb){var blocked=false;for(var b2=0;b2<rb.length;b2++){if(cn.indexOf(rb[b2])>=0){blocked=true;break}}if(blocked)continue}
-  for(var k=0;k<r[0].length;k++){var kk=r[0][k];if(r[1]==="person"&&/^[^\x00-\xff]$/.test(kk)){var hd=cn.split(/[；;，、\/]/)[0];if(hd.charAt(hd.length-1)!==kk)continue}if(keyHit(kk)){var p3=scenePic(r[1],cnS);return{svg:p3.svg,bg:p3.bg,desc:mnemonicFor(w,r[2])}}}}
+  for(var k=0;k<r[0].length;k++){var kk=r[0][k];if(r[1]==="person"&&/^[^\x00-\xff]$/.test(kk)){var hd=cn.split(/[；;，、\/]/)[0];if(hd.charAt(hd.length-1)!==kk)continue}if(keyHit(kk)){var p3=scenePic(r[1],w.word,cnS);return{svg:p3.svg,bg:p3.bg,desc:mnemonicFor(w,r[2])}}}}
  /* 没有任何真实匹配（逐词图、释义实物、场景规则都没命中）时不放图：返回空图，词卡会隐藏联想板块，不用字卡冒充联想图 */
  return{svg:"",bg:"",desc:mnemonicFor(w,null)};
 }
@@ -1230,20 +1235,68 @@ function renderStats(){
  $("streakTxt").textContent="连胜 "+state.bestStreak;
  var xc=$("xpChip"); if(xc)xc.textContent="⭐ "+L.name+" · "+state.xp+" XP";
 }
-function renderList(){
- if(learnMode==="course"){renderLessonList();return}
- var el=$("wordList"); el.innerHTML=""; var shown=0,total=0; var q=(state.q||"").toLowerCase();
+function browsePool(){
+ /* 自由查词当前生效的浏览范围：选了主题就只在该主题内，输入了搜索词就只在搜索结果内，
+    两者都没有才是全词库。词卡下方词表、「上一个 / 下一个」和随机抽词都按这个范围走，
+    保证选了分类之后屏幕上的一切都跟着变，不再出现「选了跟没选一样」。 */
+ var q=(state.q||"").toLowerCase(); var pool=[];
  ALL.forEach(function(w,i){
-   if(state.filter==="精讲"){if(w.core)return}
-   if(state.unit!=="全部"&&w.unit!==parseInt(state.unit))return;
+   if(state.filter==="精讲"&&w.core)return;
    if(state.themeSel!=="全部"&&w.theme!==state.themeSel)return;
    if(q&&w.word.toLowerCase().indexOf(q)<0&&w.cn.indexOf(q)<0)return;
-   total++; if(shown>=80)return; shown++;
-   var b=document.createElement("button"); b.className="wl-btn"+(i===state.idx?" active":"");
-   b.innerHTML="<span><b>"+w.word+"</b> ⭐<br><span>"+w.cn.slice(0,12)+"</span></span><span class='dot "+(state.status[w.id]||"")+"'></span>";
-   b.onclick=function(){state.idx=i;showWord();/* 手机上词卡在结果下方：点开一个词后把词卡滚进视野，不然点完看不到任何变化，像点不开 */if(window.innerWidth<=760){var cd=document.querySelector("#view-learn .card");if(cd)window.scrollTo({top:Math.max(0,cd.getBoundingClientRect().top+window.pageYOffset-8),behavior:"smooth"})}}; el.appendChild(b);
+   pool.push(i);
  });
- var note=$("listNote"); if(note)note.textContent="当前筛选共 "+total+" 个词"+(total>80?"，列表先显示前 80 个，选单元或搜索可快速定位":"")+" · 每单元 50 词 · ⭐ = 每个词都有英文释义、词根、故事、图像与例句精讲";
+ return pool;
+}
+function pickTheme(v){
+ /* 选主题必须有看得见的效果：词卡直接跳到该主题的第一个词，之后「上一个 / 下一个」只在本主题内切换。
+    选主题时同时清掉搜索词，免得两个条件互相打架、词卡停在主题外的词上，让人以为点了没反应。 */
+ state.themeSel=v; state.q=""; var sb=$("searchBox"); if(sb)sb.value="";
+ if(v!=="全部"){
+   for(var i=0;i<ALL.length;i++){if(ALL[i].theme===v){state.idx=i;break}}
+ }
+ showWord(); window.scrollTo({top:0,behavior:"smooth"});
+}
+function renderList(){
+ if(learnMode==="course"){renderLessonList();return}
+ /* 自由查词版式：词卡永远在最前面（CSS 已把词表排到词卡下方），词表不再一上来铺满几十个词。
+    没选主题也没搜索时，下方只给当前词前后各几个词，连续浏览主要靠词卡上的「上一个 / 下一个」；
+    选了主题时，下方给当前词在本主题内的前后几个词，上一个/下一个也只在本主题内切换；
+    搜索时下方给出匹配结果（最多 36 个），点任意词即切换到词卡查看。 */
+ var el=$("wordList"); el.innerHTML=""; var q=(state.q||"").toLowerCase();
+ var themeOn=state.themeSel!=="全部";
+ var filtering=!!q||themeOn||state.filter!=="全部";
+ var matches=browsePool();
+ function chip(i){
+   var w=ALL[i]; var b=document.createElement("button"); b.className="wl-btn"+(i===state.idx?" active":"");
+   b.innerHTML="<span><b>"+w.word+"</b><br><span>"+w.cn.slice(0,12)+"</span></span><span class='dot "+(state.status[w.id]||"")+"'></span>";
+   b.onclick=function(){state.idx=i;showWord();/* 词表在词卡下方：点开一个词后把词卡滚回视野，不然点完看不到变化，像点不开 */var cd=document.querySelector("#view-learn .card");if(cd)window.scrollTo({top:Math.max(0,cd.getBoundingClientRect().top+window.pageYOffset-8),behavior:"smooth"})};
+   el.appendChild(b);
+ }
+ function posLine(txt){var d=document.createElement("div");d.className="bpos";d.textContent=txt;el.appendChild(d)}
+ var note=$("listNote");
+ if(themeOn&&!q){
+   var pos=matches.indexOf(state.idx);
+   if(pos>=0){
+     posLine("主题「"+state.themeSel+"」共 "+matches.length+" 个词 · 正在看第 "+(pos+1)+" 个 · 这里是它前后的词，点任意词切换；「上一个 / 下一个」只在本主题内切换，选「全部主题」回到全词库");
+     var lo=Math.max(0,Math.min(pos-4,matches.length-9));
+     for(var k=lo;k<Math.min(matches.length,lo+9);k++)chip(matches[k]);
+     if(note)note.textContent="自由查词 · 主题「"+state.themeSel+"」· 正在看该主题第 "+(pos+1)+" / "+matches.length+" 词";
+   }else{
+     posLine("主题「"+state.themeSel+"」共 "+matches.length+" 个词 · 点任意词进入本主题查看；「上一个 / 下一个」只在本主题内切换，选「全部主题」回到全词库");
+     matches.slice(0,9).forEach(chip);
+     if(note)note.textContent="自由查词 · 主题「"+state.themeSel+"」共 "+matches.length+" 词 · 点任意词开始看";
+   }
+ }else if(filtering){
+   if(matches.length){posLine("找到 "+matches.length+" 个词 · 点任意词在上方词卡查看"+(matches.length>36?" · 先显示前 36 个，再输入几个字母可缩小范围":""));matches.slice(0,36).forEach(chip)}
+   else posLine("没有找到匹配的词，换个关键词或清除筛选试试");
+   if(note)note.textContent="自由查词 · 正在看第 "+(state.idx+1)+" / "+ALL.length+" 词 · 词卡上的「上一个 / 下一个」在当前筛选结果内切换";
+ }else{
+   posLine("正在看第 "+(state.idx+1)+" / "+ALL.length+" 词 · 这里是它前后几个词，点任意词切换；连续浏览全部词用词卡上的「上一个 / 下一个」");
+   var lo2=Math.max(0,Math.min(state.idx-4,ALL.length-9));
+   for(var k2=lo2;k2<Math.min(ALL.length,lo2+9);k2++)chip(k2);
+   if(note)note.textContent="自由查词 · 正在看第 "+(state.idx+1)+" / "+ALL.length+" 词 · 搜索或选主题可快速定位";
+ }
 }
 function showWord(){
  var w=cur(); var d=getDetail(w); state.viewed[w.id]=true;
@@ -1337,9 +1390,16 @@ function stepWord(d){
    }
    var bp=Math.max(0,state.lessonPos-1); state.lessonPos=bp; state.idx=ws[bp]; showWord(); window.scrollTo({top:0,behavior:"smooth"}); return;
  }
- state.idx=(state.idx+d+ALL.length)%ALL.length;showWord();window.scrollTo({top:0,behavior:"smooth"})
+ /* 自由查词：在当前浏览范围内切换——选了主题就只在本主题内，搜了词就只在搜索结果内，没筛选才是全词库 */
+ var pool=browsePool();
+ if(pool.length){
+   var pos=pool.indexOf(state.idx);
+   if(pos<0)state.idx=d>0?pool[0]:pool[pool.length-1];
+   else state.idx=pool[(pos+d+pool.length)%pool.length];
+ }
+ showWord();window.scrollTo({top:0,behavior:"smooth"})
 }
-function shuffleWord(){var n;do{n=Math.floor(Math.random()*ALL.length)}while(n===state.idx);state.idx=n;showWord()}
+function shuffleWord(){var pool=learnMode==="course"?null:browsePool();if(pool&&pool.length>1){var n;do{n=pool[Math.floor(Math.random()*pool.length)]}while(n===state.idx);state.idx=n;showWord();window.scrollTo({top:0,behavior:"smooth"});return}var n;do{n=Math.floor(Math.random()*ALL.length)}while(n===state.idx);state.idx=n;showWord()}
 function markWord(s){var w=cur();var firstManual=!state.marked[w.id];state.status[w.id]=s;touchLearned(w.id);if(s==="mastered")delete state.wrong[w.id];if(learnMode==="course")state.lessonSeen[w.id]=true;/* 标记 XP 与连胜只在每个词第一次手动标记时计：已掌握 +10 / 还不熟 +5，连胜只在第一次手动标记为已掌握时 +1；之后再点（包括来回切换还不熟/已掌握）只更新掌握状态，不再加 XP、也不再加连胜。测试改过的状态不算手动标记——之后第一次手动标记仍按此规则发 */if(firstManual){state.marked[w.id]=1;addXP(s==="mastered"?10:5);if(s==="mastered"){state.streak++;state.bestStreak=Math.max(state.bestStreak,state.streak)}}showWord();renderWeak();renderLearned();if(learnMode==="course"){renderCourse();if(lessonIsDone(state.lessonNo)&&!state.lessonBonus[lessonKey(state.lessonNo)])completeLesson()}}
 function speakWord(){try{var u=new SpeechSynthesisUtterance(cur().word);u.lang="en-US";u.rate=.85;speechSynthesis.cancel();speechSynthesis.speak(u)}catch(e){}}
 function flipHint(){state.method="story";syncMTabs();renderPanel();$("panel").scrollIntoView({behavior:"smooth"})}
